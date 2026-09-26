@@ -40,7 +40,7 @@
         .summary-card p { margin: 5px 0 0 0; font-size: 0.85em; color: #555; }
 
         .import-section, .strategy-section { background: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin-bottom: 25px; }
-        .import-section textarea { width: 100%; height: 110px; padding: 10px; border: 1px solid #ced4da; border-radius: 6px; font-family: monospace; font-size: 0.85em; resize: vertical; margin: 10px 0; }
+        .import-section textarea { width: 100%; height: 140px; padding: 10px; border: 1px solid #ced4da; border-radius: 6px; font-family: monospace; font-size: 0.85em; resize: vertical; margin: 10px 0; }
         .import-actions { display: flex; gap: 10px; justify-content: flex-end; }
         
         .btn-import { background-color: #17a2b8; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
@@ -108,7 +108,7 @@
 
     <div class="import-section">
         <h3>Bulk Paste & Import Bills</h3>
-        <textarea id="importInput" placeholder="Paste raw list here..."></textarea>
+        <textarea id="importInput" placeholder="Paste your debt list here..."></textarea>
         <div class="import-actions">
             <button class="btn-clear-all" onclick="clearAllBills()">Clear All Saved</button>
             <button class="btn-import" onclick="parseAndImport()">Parse & Import Bills</button>
@@ -169,19 +169,27 @@
     billForm.addEventListener('submit', function(e) {
         e.preventDefault();
 
-        const newBill = {
-            id: Date.now(),
-            name: document.getElementById('billName').value,
-            amount: parseFloat(document.getElementById('billAmount').value) || 0,
-            balance: parseFloat(document.getElementById('billBalance').value) || 0,
-            rate: parseFloat(document.getElementById('billRate').value) || 0,
-            day: parseInt(document.getElementById('billDay').value, 10),
-            paid: false
-        };
+        const name = document.getElementById('billName').value.trim();
+        const amount = parseFloat(document.getElementById('billAmount').value) || 0;
+        const balance = parseFloat(document.getElementById('billBalance').value) || 0;
+        const rate = parseFloat(document.getElementById('billRate').value) || 0;
+        const day = parseInt(document.getElementById('billDay').value, 10) || 1;
 
-        bills.push(newBill);
+        if (!name) return;
+
+        bills.push({
+            id: Date.now() + Math.random(),
+            name: name,
+            amount: amount,
+            balance: balance,
+            rate: rate,
+            day: day,
+            paid: false
+        });
+
         saveAndRender();
         billForm.reset();
+        document.getElementById('billRate').value = '30.0';
     });
 
     function estimateAprByName(name) {
@@ -212,42 +220,46 @@
         let addedCount = 0;
 
         lines.forEach((line) => {
-            const numbers = line.match(/\$?[\d,]+(\.\d+)?/g);
-            const dayMatch = line.match(/\b([1-9]|[12]\d|3[01])(st|nd|rd|th)?\b/i);
-
+            // Extract Due Day (e.g., 1st, 28th, 7th)
+            const dayMatch = line.match(/\b([1-9]|[12]\d|3[01])(st|nd|rd|th)\b/i);
             let day = dayMatch ? parseInt(dayMatch[1], 10) : 1;
-            let amount = 0;
-            let balance = 0;
 
-            if (numbers) {
-                const parsedNums = numbers.map(n => parseFloat(n.replace(/[\$,]/g, ''))).filter(n => !isNaN(n));
-                if (parsedNums.length >= 2) {
-                    balance = Math.max(...parsedNums);
-                    amount = Math.min(...parsedNums);
-                } else if (parsedNums.length === 1) {
-                    amount = parsedNums[0];
+            // Extract Balance (e.g. $10000.00 Balance)
+            const balanceMatch = line.match(/\$([\d,]+(?:\.\d+)?)\s*Balance/i);
+            let balance = balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, '')) : 0;
+
+            // Extract Min Payment (e.g. $350.00 Min)
+            const minMatch = line.match(/\$([\d,]+(?:\.\d+)?)\s*Min/i);
+            let amount = minMatch ? parseFloat(minMatch[1].replace(/,/g, '')) : 0;
+
+            // Fallback: If no "Balance" or "Min" keywords exist, pull raw currency amounts
+            if (balance === 0 && amount === 0) {
+                const genericDollarMatches = line.match(/\$([\d,]+(?:\.\d+)?)/g);
+                if (genericDollarMatches) {
+                    const parsedNums = genericDollarMatches.map(n => parseFloat(n.replace(/[\$,]/g, ''))).filter(n => !isNaN(n));
+                    if (parsedNums.length >= 2) {
+                        balance = Math.max(...parsedNums);
+                        amount = Math.min(...parsedNums);
+                    } else if (parsedNums.length === 1) {
+                        amount = parsedNums[0];
+                    }
                 }
             }
 
-            let name = line
-                .replace(/\$?[\d,]+(\.\d+)?/g, '')
-                .replace(/\b([1-9]|[12]\d|3[01])(st|nd|rd|th)?\b/gi, '')
-                .replace(/Balance|Min|Payment|Pay|due|standard|minimum|Target/gi, '')
-                .replace(/[-|#$]/g, ' ')
-                .trim();
+            // Extract Name (everything up to the first dash or dollar sign)
+            let name = line.split(/[-$]/)[0].trim();
+            if (!name) name = "Uncategorized Bill";
 
-            if (name) {
-                bills.push({
-                    id: Date.now() + Math.random(),
-                    name: name,
-                    amount: amount,
-                    balance: balance,
-                    rate: estimateAprByName(name),
-                    day: day,
-                    paid: false
-                });
-                addedCount++;
-            }
+            bills.push({
+                id: Date.now() + Math.random(),
+                name: name,
+                amount: amount,
+                balance: balance,
+                rate: estimateAprByName(name),
+                day: day,
+                paid: false
+            });
+            addedCount++;
         });
 
         document.getElementById('importInput').value = '';
@@ -280,7 +292,7 @@
     }
 
     function saveEdit(id) {
-        const nameInput = document.getElementById(`edit-name-${id}`).value;
+        const nameInput = document.getElementById(`edit-name-${id}`).value.trim();
         const amountInput = parseFloat(document.getElementById(`edit-amount-${id}`).value) || 0;
         const balanceInput = parseFloat(document.getElementById(`edit-balance-${id}`).value) || 0;
         const rateInput = parseFloat(document.getElementById(`edit-rate-${id}`).value) || 0;
@@ -415,14 +427,13 @@
         let months = 0;
         let balanceHistory = [];
 
-        let currentTotalBalance = activeDebts.reduce((sum, debt) => sum + debt.balance, 0);
+        let currentTotalBalance = activeDebts.reduce((sum, d) => sum + d.balance, 0);
         balanceHistory.push(currentTotalBalance);
 
         while (currentTotalBalance > 0.01 && months < 360) {
             months++;
             let extraAvailable = extraPayment;
 
-            // 1. Calculate monthly interest on remaining balances
             activeDebts.forEach(debt => {
                 if (debt.balance > 0) {
                     let interest = debt.balance * debt.monthlyRate;
@@ -431,7 +442,6 @@
                 }
             });
 
-            // 2. Pay minimum payments
             activeDebts.forEach(debt => {
                 if (debt.balance > 0) {
                     let pay = Math.min(debt.balance, debt.minPayment);
@@ -445,7 +455,6 @@
                 }
             });
 
-            // 3. Apply extra snowball payment
             for (let debt of activeDebts) {
                 if (debt.balance > 0 && extraAvailable > 0) {
                     let extraPay = Math.min(debt.balance, extraAvailable);
@@ -455,8 +464,7 @@
                 }
             }
 
-            // Fixed: correctly reference 'debt' inside the reduce function
-            currentTotalBalance = activeDebts.reduce((sum, debt) => sum + debt.balance, 0);
+            currentTotalBalance = activeDebts.reduce((sum, d) => sum + d.balance, 0);
             balanceHistory.push(currentTotalBalance);
         }
 
@@ -469,7 +477,7 @@
     function drawCanvasChart(history) {
         const canvas = document.getElementById('customPayoffChart');
         if (!canvas) return;
-        
+
         const ctx = canvas.getContext('2d');
         canvas.width = canvas.parentElement.clientWidth;
         canvas.height = canvas.parentElement.clientHeight;
@@ -504,7 +512,6 @@
         ctx.fill();
     }
 
-    // Trigger initial render after DOM is ready
     window.addEventListener('DOMContentLoaded', () => {
         renderBills();
         updatePayoffProjection();
