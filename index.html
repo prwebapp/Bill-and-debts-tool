@@ -657,77 +657,82 @@
         document.getElementById('totalMinPayments').innerText = '$' + minTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         document.getElementById('totalBalance').innerText = '$' + balTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     }
+function updatePayoffProjection() {
+    const strategy = document.getElementById('strategyType').value;
+    const extraPayment = parseFloat(document.getElementById('extraPayment').value) || 0;
 
-    function updatePayoffProjection() {
-        const strategy = document.getElementById('strategyType').value;
-        const extraPayment = parseFloat(document.getElementById('extraPayment').value) || 0;
+    let activeDebts = bills
+        .filter(b => b.balance > 0)
+        .map(b => ({
+            name: b.name,
+            balance: parseFloat(b.balance),
+            minPayment: parseFloat(b.amount),
+            monthlyRate: (parseFloat(b.rate || 19.9) / 100) / 12
+        }));
 
-        let activeDebts = bills
-            .filter(b => b.balance > 0)
-            .map(b => ({
-                name: b.name,
-                balance: parseFloat(b.balance),
-                minPayment: parseFloat(b.amount),
-                rate: parseFloat(b.rate || 0) / 100 / 12
-            }));
+    if (activeDebts.length === 0) {
+        drawCanvasChart([0]);
+        document.getElementById('metricMonths').innerText = '0 Months';
+        document.getElementById('metricInterest').innerText = '$0.00';
+        return;
+    }
 
-        if (activeDebts.length === 0) {
-            drawCanvasChart([0]);
-            document.getElementById('metricMonths').innerText = '0 Months';
-            document.getElementById('metricInterest').innerText = '$0.00';
-            return;
-        }
+    let totalBalanceHistory = [activeDebts.reduce((acc, d) => acc + d.balance, 0)];
+    let totalInterestPaid = 0;
+    let monthCount = 0;
+    const maxMonths = 600; // Cap at 50 years to prevent infinite loops
 
+    while (monthCount < maxMonths) {
+        let totalCurrentBal = activeDebts.reduce((acc, d) => acc + d.balance, 0);
+        if (totalCurrentBal <= 0) break;
+
+        monthCount++;
+
+        // 1. Calculate monthly interest on current starting balance
+        activeDebts.forEach(d => {
+            if (d.balance > 0) {
+                let interest = d.balance * d.monthlyRate;
+                totalInterestPaid += interest;
+                d.balance += interest; // Add interest accrued
+            }
+        });
+
+        // 2. Pay minimum required payments across all debts
+        let extraPool = extraPayment;
+        activeDebts.forEach(d => {
+            if (d.balance > 0) {
+                let pay = Math.min(d.balance, d.minPayment);
+                d.balance -= pay;
+            }
+        });
+
+        // 3. Sort debts to apply extra cash based on strategy
         if (strategy === 'snowball') {
             activeDebts.sort((a, b) => a.balance - b.balance);
         } else {
-            activeDebts.sort((a, b) => b.rate - a.rate);
+            activeDebts.sort((a, b) => b.monthlyRate - a.monthlyRate);
         }
 
-        let totalBalanceHistory = [activeDebts.reduce((acc, d) => acc + d.balance, 0)];
-        let totalInterestPaid = 0;
-        let monthCount = 0;
-        const maxMonths = 360;
-
-        while (monthCount < maxMonths) {
-            let totalCurrentBal = activeDebts.reduce((acc, d) => acc + d.balance, 0);
-            if (totalCurrentBal <= 0) break;
-
-            monthCount++;
-            let availableExtra = extraPayment;
-
-            activeDebts.forEach(d => {
-                if (d.balance > 0) {
-                    let interest = d.balance * d.rate;
-                    totalInterestPaid += interest;
-                    d.balance += interest;
-                }
-            });
-
-            activeDebts.forEach(d => {
-                if (d.balance > 0) {
-                    let payment = Math.min(d.balance, d.minPayment);
-                    d.balance -= payment;
-                }
-            });
-
-            for (let d of activeDebts) {
-                if (d.balance > 0 && availableExtra > 0) {
-                    let extra = Math.min(d.balance, availableExtra);
-                    d.balance -= extra;
-                    availableExtra -= extra;
-                }
+        // 4. Apply extra cash to priority target
+        for (let d of activeDebts) {
+            if (d.balance > 0 && extraPool > 0) {
+                let extra = Math.min(d.balance, extraPool);
+                d.balance -= extra;
+                extraPool -= extra;
             }
-
-            let monthEndTotal = activeDebts.reduce((acc, d) => acc + Math.max(0, d.balance), 0);
-            totalBalanceHistory.push(monthEndTotal);
         }
 
-        document.getElementById('metricMonths').innerText = `${monthCount} Months (${(monthCount / 12).toFixed(1)} Yrs)`;
-        document.getElementById('metricInterest').innerText = '$' + totalInterestPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-
-        drawCanvasChart(totalBalanceHistory);
+        let monthEndTotal = activeDebts.reduce((acc, d) => acc + Math.max(0, d.balance), 0);
+        totalBalanceHistory.push(monthEndTotal);
     }
+
+    const years = (monthCount / 12).toFixed(1);
+    document.getElementById('metricMonths').innerText = `${monthCount} Months (${years} Yrs)`;
+    document.getElementById('metricInterest').innerText = '$' + totalInterestPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+    drawCanvasChart(totalBalanceHistory);
+}
+
 
     function drawCanvasChart(data) {
         const canvas = document.getElementById('customPayoffChart');
