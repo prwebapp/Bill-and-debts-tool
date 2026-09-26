@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#007bff">
+    <meta name="description" content="Offline-capable PWA Bill and Debt Reminder Tool with payoff strategy calculator.">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Bill Tracker">
+    <title>Bill & Debt Reminder Tool</title>
+
+    <!-- Inline Web App Manifest Generator -->
+    <script>
+        const manifest = {
+            "name": "Bill & Debt Reminder Tool",
+            "short_name": "BillTracker",
+            "start_url": "./",
+            "display": "standalone",
+            "background_color": "#f4f6f8",
+            "theme_color": "#007bff",
+            "icons": [
+                {
+                    "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' fill='%23007bff'><rect width='512' height='512' rx='100' fill='%23007bff'/><text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-size='280' fill='white' font-weight='bold' font-family='sans-serif'>$</text></svg>",
+                    "sizes": "192x192 512x512",
+                    "type": "image/svg+xml",
+                    "purpose": "any maskable"
+                }
+            ]
+        };
+        const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
+        const manifestUrl = URL.createObjectURL(manifestBlob);
+        const link = document.createElement('link');
+        link.rel = 'manifest';
+        link.href = manifestUrl;
+        document.head.appendChild(link);
+    </script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f4f6f8;
+            margin: 0;
+            padding: 20px 10px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 850px;
+            background: #ffffff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        .header-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        h2, h3 {
+            margin: 0;
+            color: #333;
+        }
+
+        /* PWA Install Banner */
+        .install-banner {
+            display: none;
+            background: #e7f1ff;
+            border: 1px solid #b6d4fe;
+            color: #084298;
+            padding: 10px 15px;
+            border-radius: 8px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .btn-install {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .summary-card {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+        }
+
+        .summary-card div {
+            flex: 1;
+        }
+
+        .summary-card h3 {
+            margin: 0;
+            font-size: 1.3em;
+            color: #007bff;
+        }
+
+        .summary-card p {
+            margin: 5px 0 0 0;
+            font-size: 0.85em;
+            color: #555;
+        }
+
+        /* Import Section */
+        .import-section {
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 18px;
+            margin-bottom: 25px;
+        }
+
+        .import-section textarea {
+            width: 100%;
+            height: 110px;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.85em;
+            resize: vertical;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+
+        .import-actions {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .btn-import {
+            background-color: #17a2b8;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn-clear-all {
+            background-color: #6c757d;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        /* Strategy Section */
+        .strategy-section {
+            background: #f8f9fa;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 18px;
+            margin-bottom: 25px;
+        }
+
+        .strategy-controls {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+
+        .strategy-controls label {
+            font-size: 0.9em;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .strategy-controls select, .strategy-controls input {
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+        }
+
+        .canvas-container {
+            width: 100%;
+            height: 220px;
+            background: #ffffff;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 10px;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        .strategy-metrics {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 15px;
+            padding: 10px;
+            background: #fff;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+            font-size: 0.9em;
+            text-align: center;
+        }
+
+        .strategy-metrics div {
+            flex: 1;
+        }
+
+        .strategy-metrics strong {
+            display: block;
+            color: #007bff;
+            font-size: 1.1em;
+        }
+
+        /* Form Controls */
+        .form-group {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .form-group input {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            flex: 1;
+            min-width: 110px;
+        }
+
+        .form-group button {
+            padding: 10px 16px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        /* Bill List Items */
+        .bill-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .bill-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            background-color: #fafafa;
+        }
+
+        .bill-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .bill-name {
+            font-weight: bold;
+            color: #333;
+        }
+
+        .bill-details {
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+        }
+
+        .btn-paid { background-color: #007bff; color: white; }
+        .btn-delete { background-color: #dc3545; color: white; }
+
+        /* Status Colors */
+        .status-overdue { border-left: 5px solid #dc3545; background-color: #fff8f8; }
+        .status-upcoming { border-left: 5px solid #ffc107; }
+        .status-paid { border-left: 5px solid #28a745; opacity: 0.65; }
+        .status-paid .bill-name { text-decoration: line-through; }
+
+        .badge {
+            font-size: 0.75em;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: white;
+            display: inline-block;
+            margin-left: 5px;
+        }
+        .badge-overdue { background-color: #dc3545; }
+        .badge-paid { background-color: #28a745; }
+        .badge-upcoming { background-color: #ffc107; color: #333; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-bar">
+        <h2>Bill & Debt Reminder</h2>
+        <span id="pwaStatus" style="font-size: 0.8em; color: #28a745; font-weight: bold;">● App Ready</span>
+    </div>
+
+    <!-- PWA Install Banner -->
+    <div id="installBanner" class="install-banner">
+        <span>Install Bill Tracker app on your device for quick access offline.</span>
+        <button id="installBtn" class="btn-install">Install App</button>
+    </div>
+
+    <!-- Summary Card -->
+    <div class="summary-card">
+        <div>
+            <h3 id="totalMinPayments">$0.00</h3>
+            <p>Total Monthly Minimums</p>
+        </div>
+        <div>
+            <h3 id="totalBalance">$0.00</h3>
+            <p>Total Debt Balance</p>
+        </div>
+    </div>
+
+    <!-- Bulk Import Section -->
+    <div class="import-section">
+        <h3>Bulk Paste & Import Bills</h3>
+        <textarea id="importInput" placeholder="Paste raw table or plain list here..."></textarea>
+        <div class="import-actions">
+            <button class="btn-clear-all" onclick="clearAllBills()">Clear All Saved</button>
+            <button class="btn-import" onclick="parseAndImport()">Parse & Import Bills</button>
+        </div>
+    </div>
+
+    <!-- Strategy Planner Section -->
+    <div class="strategy-section">
+        <h3>Payoff Strategy Projection</h3>
+        <div class="strategy-controls">
+            <div>
+                <label for="strategyType">Method: </label>
+                <select id="strategyType" onchange="updatePayoffProjection()">
+                    <option value="snowball">Snowball (Lowest Balance First)</option>
+                    <option value="avalanche">Avalanche (Highest Interest First)</option>
+                </select>
+            </div>
+            <div>
+                <label for="extraPayment">Extra Monthly Cash ($): </label>
+                <input type="number" id="extraPayment" value="200" min="0" step="25" oninput="updatePayoffProjection()">
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="customPayoffChart"></canvas>
+        </div>
+
+        <div class="strategy-metrics">
+            <div>
+                <span>Debt-Free Timeline</span>
+                <strong id="metricMonths">0 Months</strong>
+            </div>
+            <div>
+                <span>Est. Interest Paid</span>
+                <strong id="metricInterest">$0.00</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- Single Bill Entry Form -->
+    <form id="billForm" class="form-group">
+        <input type="text" id="billName" placeholder="Bill Name" required>
+        <input type="number" id="billAmount" placeholder="Min Payment ($)" step="0.01" required>
+        <input type="number" id="billBalance" placeholder="Total Balance ($)" step="0.01">
+        <input type="number" id="billRate" placeholder="APR (%)" step="0.1" value="19.9">
+        <input type="number" id="billDay" placeholder="Due Day (1-31)" min="1" max="31" required>
+        <button type="submit">Add Bill</button>
+    </form>
+
+    <!-- Bill List -->
+    <ul id="billList" class="bill-list"></ul>
+</div>
+
+<script>
+    // PWA Service Worker Registration using Data URL
+    if ('serviceWorker' in navigator) {
+        const swCode = `
+            const CACHE_NAME = 'bill-tracker-v1';
+            self.addEventListener('install', (e) => {
+                e.waitUntil(
+                    caches.open(CACHE_NAME).then((cache) => {
+                        return cache.addAll(['./']);
+                    })
+                );
+            });
+            self.addEventListener('fetch', (e) => {
+                e.respondWith(
+                    caches.match(e.request).then((res) => res || fetch(e.request))
+                );
+            });
+        `;
+        const blob = new Blob([swCode], { type: 'text/javascript' });
+        const swUrl = URL.createObjectURL(blob);
+
+        navigator.serviceWorker.register(swUrl)
+            .then(() => console.log('PWA SW Registered'))
+            .catch(err => console.log('SW Reg Failed:', err));
+    }
+
+    // PWA Prompt Handling
+    let deferredPrompt;
+    const installBanner = document.getElementById('installBanner');
+    const installBtn = document.getElementById('installBtn');
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        installBanner.style.display = 'flex';
+    });
+
+    installBtn.addEventListener('click', () => {
+        if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then((choiceResult) => {
+                if (choiceResult.outcome === 'accepted') {
+                    installBanner.style.display = 'none';
+                }
+                deferredPrompt = null;
+            });
+        }
+    });
+
+    // Main Tool Logic
+    let bills = JSON.parse(localStorage.getItem('debt_bills')) || [];
+
+    const billForm = document.getElementById('billForm');
+    const billList = document.getElementById('billList');
+
+    billForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const newBill = {
+            id: Date.now(),
+            name: document.getElementById('billName').value,
+            amount: parseFloat(document.getElementById('billAmount').value) || 0,
+            balance: parseFloat(document.getElementById('billBalance').value) || 0,
+            rate: parseFloat(document.getElementById('billRate').value) || 0,
+            day: parseInt(document.getElementById('billDay').value, 10),
+            paid: false
+        };
+
+        bills.push(newBill);
+        saveAndRender();
+        billForm.reset();
+    });
+
+    function parseAndImport() {
+        const rawText = document.getElementById('importInput').value.trim();
+        if (!rawText) return;
+
+        const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        let addedCount = 0;
+        const ignoredKeywords = ['due date', 'debt / bill', 'priority status', 'action / snowball', 'totals', 'min. payment'];
+
+        let i = 0;
+        while (i < lines.length) {
+            let line = lines[i];
+
+            if (ignoredKeywords.some(kw => line.toLowerCase().includes(kw)) || line === '') {
+                i++;
+                continue;
+            }
+
+            const dateMatch = line.match(/^(\d{1,2})(st|nd|rd|th)?$/i);
+
+            if (dateMatch && (i + 4) < lines.length) {
+                const day = parseInt(dateMatch[1], 10);
+                const name = lines[i + 1];
+                const rawBalance = lines[i + 3];
+                const rawMin = lines[i + 4];
+
+                const balance = parseFloat(rawBalance.replace(/[\$,—]/g, '')) || 0;
+                const amount = parseFloat(rawMin.replace(/[\$,—]/g, '')) || 0;
+
+                if (name && !ignoredKeywords.some(kw => name.toLowerCase().includes(kw))) {
+                    bills.push({
+                        id: Date.now() + Math.random(),
+                        name: name,
+                        amount: amount,
+                        balance: balance,
+                        rate: 19.9,
+                        day: day,
+                        paid: false
+                    });
+                    addedCount++;
+                }
+                i += 6;
+            } else {
+                const numbers = line.match(/\$?[\d,]+(\.\d+)?/g);
+                const dayMatch = line.match(/\b([1-9]|[12]\d|3[01])(st|nd|rd|th)?\b/i);
+
+                let day = dayMatch ? parseInt(dayMatch[1], 10) : 1;
+                let amount = 0;
+                let balance = 0;
+
+                if (numbers) {
+                    const parsedNums = numbers.map(n => parseFloat(n.replace(/[\$,]/g, ''))).filter(n => !isNaN(n));
+                    if (parsedNums.length >= 2) {
+                        balance = Math.max(...parsedNums);
+                        amount = Math.min(...parsedNums);
+                    } else if (parsedNums.length === 1) {
+                        amount = parsedNums[0];
+                    }
+                }
+
+                let name = line
+                    .replace(/\$?[\d,]+(\.\d+)?/g, '')
+                    .replace(/\b([1-9]|[12]\d|3[01])(st|nd|rd|th)?\b/gi, '')
+                    .replace(/Balance|Min|Payment|Pay|due|standard|minimum|Target|Target:/gi, '')
+                    .replace(/[-|#$]/g, ' ')
+                    .trim();
+
+                if (name && !ignoredKeywords.some(kw => name.toLowerCase().includes(kw))) {
+                    bills.push({
+                        id: Date.now() + Math.random(),
+                        name: name,
+                        amount: amount,
+                        balance: balance,
+                        rate: 19.9,
+                        day: day,
+                        paid: false
+                    });
+                    addedCount++;
+                }
+                i++;
+            }
+        }
+
+        document.getElementById('importInput').value = '';
+        saveAndRender();
+        alert(`Successfully imported ${addedCount} bills!`);
+    }
+
+    function clearAllBills() {
+        if (confirm("Are you sure you want to delete all saved bills?")) {
+            bills = [];
+            saveAndRender();
+        }
+    }
+
+    function togglePaid(id) {
+        bills = bills.map(bill => {
+            if (bill.id === id) {
+                return { ...bill, paid: !bill.paid };
+            }
+            return bill;
+        });
+        saveAndRender();
+    }
+
+    function deleteBill(id) {
+        bills = bills.filter(bill => bill.id !== id);
+        saveAndRender();
+    }
+
+    function saveAndRender() {
+        bills.sort((a, b) => a.day - b.day);
+        localStorage.setItem('debt_bills', JSON.stringify(bills));
+        renderBills();
+        updatePayoffProjection();
+    }
+
+    function renderBills() {
+        billList.innerHTML = '';
+
+        if (bills.length === 0) {
+            billList.innerHTML = '<p style="text-align: center; color: #888;">No bills added yet. Paste a list above to populate.</p>';
+            updateSummary(0, 0);
+            return;
+        }
+
+        const currentDay = new Date().getDate();
+        let totalMin = 0;
+        let totalBal = 0;
+
+        bills.forEach(bill => {
+            totalMin += parseFloat(bill.amount || 0);
+            totalBal += parseFloat(bill.balance || 0);
+
+            const li = document.createElement('li');
+
+            let statusClass = 'status-upcoming';
+            let badgeHtml = '<span class="badge badge-upcoming">Upcoming</span>';
+
+            if (bill.paid) {
+                statusClass = 'status-paid';
+                badgeHtml = '<span class="badge badge-paid">Paid</span>';
+            } else if (bill.day < currentDay) {
+                statusClass = 'status-overdue';
+                badgeHtml = '<span class="badge badge-overdue">Past Due Day</span>';
+            }
+
+            const balanceText = bill.balance > 0 ? ` | Balance: $${parseFloat(bill.balance).toLocaleString('en-US', {minimumFractionDigits: 2})}` : '';
+
+            li.className = `bill-item ${statusClass}`;
+            li.innerHTML = `
+                <div class="bill-info">
+                    <span class="bill-name">${escapeHtml(bill.name)} ${badgeHtml}</span>
+                    <span class="bill-details">Due: ${ordinalSuffix(bill.day)} | Min: $${parseFloat(bill.amount).toFixed(2)}${balanceText}</span>
+                </div>
+                <div class="actions">
+                    <button class="btn btn-paid" onclick="togglePaid(${bill.id})">
+                        ${bill.paid ? 'Unpaid' : 'Mark Paid'}
+                    </button>
+                    <button class="btn btn-delete" onclick="deleteBill(${bill.id})">Delete</button>
+                </div>
+            `;
+            billList.appendChild(li);
+        });
+
+        updateSummary(totalMin, totalBal);
+    }
+
+    function updateSummary(minTotal, balTotal) {
+        document.getElementById('totalMinPayments').innerText = '$' + minTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+        document.getElementById('totalBalance').innerText = '$' + balTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    function updatePayoffProjection() {
+        const strategy = document.getElementById('strategyType').value;
+        const extraPayment = parseFloat(document.getElementById('extraPayment').value) || 0;
+
+        let activeDebts = bills
+            .filter(b => b.balance > 0)
+            .map(b => ({
+                name: b.name,
+                balance: parseFloat(b.balance),
+                minPayment: parseFloat(b.amount),
+                rate: parseFloat(b.rate || 0) / 100 / 12
+            }));
+
+        if (activeDebts.length === 0) {
+            drawCanvasChart([0]);
+            document.getElementById('metricMonths').innerText = '0 Months';
+            document.getElementById('metricInterest').innerText = '$0.00';
+            return;
+        }
+
+        if (strategy === 'snowball') {
+            activeDebts.sort((a, b) => a.balance - b.balance);
+        } else {
+            activeDebts.sort((a, b) => b.rate - a.rate);
+        }
+
+        let totalBalanceHistory = [activeDebts.reduce((acc, d) => acc + d.balance, 0)];
+        let totalInterestPaid = 0;
+        let monthCount = 0;
+        const maxMonths = 360;
+
+        while (monthCount < maxMonths) {
+            let totalCurrentBal = activeDebts.reduce((acc, d) => acc + d.balance, 0);
+            if (totalCurrentBal <= 0) break;
+
+            monthCount++;
+            let availableExtra = extraPayment;
+
+            activeDebts.forEach(d => {
+                if (d.balance > 0) {
+                    let interest = d.balance * d.rate;
+                    totalInterestPaid += interest;
+                    d.balance += interest;
+                }
+            });
+
+            activeDebts.forEach(d => {
+                if (d.balance > 0) {
+                    let payment = Math.min(d.balance, d.minPayment);
+                    d.balance -= payment;
+                }
+            });
+
+            for (let d of activeDebts) {
+                if (d.balance > 0 && availableExtra > 0) {
+                    let extra = Math.min(d.balance, availableExtra);
+                    d.balance -= extra;
+                    availableExtra -= extra;
+                }
+            }
+
+            let monthEndTotal = activeDebts.reduce((acc, d) => acc + Math.max(0, d.balance), 0);
+            totalBalanceHistory.push(monthEndTotal);
+        }
+
+        document.getElementById('metricMonths').innerText = `${monthCount} Months (${(monthCount / 12).toFixed(1)} Yrs)`;
+        document.getElementById('metricInterest').innerText = '$' + totalInterestPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+        drawCanvasChart(totalBalanceHistory);
+    }
+
+    function drawCanvasChart(data) {
+        const canvas = document.getElementById('customPayoffChart');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+
+        const width = canvas.width;
+        const height = canvas.height;
+        const padding = 35;
+
+        ctx.clearRect(0, 0, width, height);
+
+        if (data.length <= 1) return;
+
+        const maxVal = Math.max(...data);
+
+        ctx.strokeStyle = "#e0e0e0";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        for (let i = 0; i <= 4; i++) {
+            let y = padding + (i * (height - 2 * padding) / 4);
+            ctx.moveTo(padding, y);
+            ctx.lineTo(width - padding, y);
+            
+            ctx.fillStyle = "#888";
+            ctx.font = "10px Arial";
+            let valLabel = Math.round(maxVal - (i * maxVal / 4));
+            ctx.fillText("$" + valLabel.toLocaleString(), 5, y + 3);
+        }
+        ctx.stroke();
+
+        ctx.strokeStyle = "#007bff";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+
+        const xStep = (width - 2 * padding) / (data.length - 1);
+
+        data.forEach((val, index) => {
+            let x = padding + (index * xStep);
+            let y = height - padding - ((val / maxVal) * (height - 2 * padding));
+
+            if (index === 0) {
+                ctx.moveTo(x, y);
+            } else {
+                ctx.lineTo(x, y);
+            }
+        });
+        ctx.stroke();
+
+        ctx.lineTo(width - padding, height - padding);
+        ctx.lineTo(padding, height - padding);
+        ctx.fillStyle = "rgba(0, 123, 255, 0.08)";
+        ctx.fill();
+
+        ctx.fillStyle = "#555";
+        ctx.font = "11px Arial";
+        ctx.fillText("Start", padding, height - 10);
+        ctx.fillText(`Payoff (${data.length - 1}m)`, width - padding - 65, height - 10);
+    }
+
+    function ordinalSuffix(i) {
+        const j = i % 10, k = i % 100;
+        if (j === 1 && k !== 11) return i + "st";
+        if (j === 2 && k !== 12) return i + "nd";
+        if (j === 3 && k !== 13) return i + "rd";
+        return i + "th";
+    }
+
+    function escapeHtml(str) {
+        return String(str).replace(/[&<>'"]/g, 
+            tag => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                "'": '&#39;',
+                '"': '&quot;'
+            }[tag] || tag)
+        );
+    }
+
+    window.addEventListener('resize', updatePayoffProjection);
+
+    renderBills();
+    updatePayoffProjection();
+</script>
+
+</body>
+</html>
