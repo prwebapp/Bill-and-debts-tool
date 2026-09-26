@@ -10,7 +10,6 @@
     <meta name="apple-mobile-web-app-title" content="Bill Tracker">
     <title>Bill & Debt Reminder Tool</title>
 
-    <!-- Inline Web App Manifest Generator -->
     <script>
         const manifest = {
             "name": "Bill & Debt Reminder Tool",
@@ -19,312 +18,69 @@
             "display": "standalone",
             "background_color": "#f4f6f8",
             "theme_color": "#007bff",
-            "icons": [
-                {
-                    "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' fill='%23007bff'><rect width='512' height='512' rx='100' fill='%23007bff'/><text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-size='280' fill='white' font-weight='bold' font-family='sans-serif'>$</text></svg>",
-                    "sizes": "192x192 512x512",
-                    "type": "image/svg+xml",
-                    "purpose": "any maskable"
-                }
-            ]
+            "icons": [{
+                "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' fill='%23007bff'><rect width='512' height='512' rx='100' fill='%23007bff'/><text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-size='280' fill='white' font-weight='bold' font-family='sans-serif'>$</text></svg>",
+                "sizes": "192x192 512x512",
+                "type": "image/svg+xml",
+                "purpose": "any maskable"
+            }]
         };
         const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
-        const manifestUrl = URL.createObjectURL(manifestBlob);
         const link = document.createElement('link');
         link.rel = 'manifest';
-        link.href = manifestUrl;
+        link.href = URL.createObjectURL(manifestBlob);
         document.head.appendChild(link);
     </script>
 
     <style>
-        * {
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-        }
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: #f4f6f8; margin: 0; padding: 20px 10px; display: flex; justify-content: center; }
+        .container { width: 100%; max-width: 850px; background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        h2, h3 { margin: 0; color: #333; }
+        
+        .summary-card { background-color: #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 20px; display: flex; justify-content: space-around; text-align: center; }
+        .summary-card h3 { margin: 0; font-size: 1.3em; color: #007bff; }
+        .summary-card p { margin: 5px 0 0 0; font-size: 0.85em; color: #555; }
 
-        body {
-            background-color: #f4f6f8;
-            margin: 0;
-            padding: 20px 10px;
-            display: flex;
-            justify-content: center;
-        }
+        .import-section, .strategy-section { background: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin-bottom: 25px; }
+        .import-section textarea { width: 100%; height: 110px; padding: 10px; border: 1px solid #ced4da; border-radius: 6px; font-family: monospace; font-size: 0.85em; resize: vertical; margin: 10px 0; }
+        .import-actions { display: flex; gap: 10px; justify-content: flex-end; }
+        
+        .btn-import { background-color: #17a2b8; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-clear-all { background-color: #6c757d; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; }
 
-        .container {
-            width: 100%;
-            max-width: 850px;
-            background: #ffffff;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-        }
+        .strategy-controls { display: flex; gap: 15px; justify-content: center; align-items: center; margin: 15px 0; flex-wrap: wrap; }
+        .strategy-controls label { font-size: 0.9em; font-weight: bold; color: #495057; }
+        .strategy-controls select, .strategy-controls input { padding: 8px; border: 1px solid #ced4da; border-radius: 6px; }
 
-        .header-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
+        .canvas-container { width: 100%; height: 220px; background: #ffffff; border: 1px solid #ccc; border-radius: 6px; padding: 10px; }
+        canvas { width: 100%; height: 100%; }
 
-        h2, h3 {
-            margin: 0;
-            color: #333;
-        }
+        .strategy-metrics { display: flex; justify-content: space-between; margin-top: 15px; padding: 10px; background: #fff; border-radius: 6px; border: 1px solid #e0e0e0; font-size: 0.9em; text-align: center; }
+        .strategy-metrics strong { display: block; color: #007bff; font-size: 1.1em; }
 
-        /* PWA Install Banner */
-        .install-banner {
-            display: none;
-            background: #e7f1ff;
-            border: 1px solid #b6d4fe;
-            color: #084298;
-            padding: 10px 15px;
-            border-radius: 8px;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 20px;
-        }
+        .form-group { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .form-group input { padding: 10px; border: 1px solid #ccc; border-radius: 6px; flex: 1; min-width: 110px; }
+        .form-group button { padding: 10px 16px; background-color: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
 
-        .btn-install {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            padding: 6px 14px;
-            border-radius: 6px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .summary-card {
-            background-color: #e9ecef;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-around;
-            text-align: center;
-        }
-
-        .summary-card div {
-            flex: 1;
-        }
-
-        .summary-card h3 {
-            margin: 0;
-            font-size: 1.3em;
-            color: #007bff;
-        }
-
-        .summary-card p {
-            margin: 5px 0 0 0;
-            font-size: 0.85em;
-            color: #555;
-        }
-
-        /* Import Section */
-        .import-section {
-            background: #f8f9fa;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 18px;
-            margin-bottom: 25px;
-        }
-
-        .import-section textarea {
-            width: 100%;
-            height: 110px;
-            padding: 10px;
-            border: 1px solid #ced4da;
-            border-radius: 6px;
-            font-family: monospace;
-            font-size: 0.85em;
-            resize: vertical;
-            margin-top: 10px;
-            margin-bottom: 10px;
-        }
-
-        .import-actions {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-        }
-
-        .btn-import {
-            background-color: #17a2b8;
-            color: white;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        .btn-clear-all {
-            background-color: #6c757d;
-            color: white;
-            padding: 8px 16px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-        }
-
-        /* Strategy Section */
-        .strategy-section {
-            background: #f8f9fa;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 18px;
-            margin-bottom: 25px;
-        }
-
-        .strategy-controls {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            align-items: center;
-            margin: 15px 0;
-            flex-wrap: wrap;
-        }
-
-        .strategy-controls label {
-            font-size: 0.9em;
-            font-weight: bold;
-            color: #495057;
-        }
-
-        .strategy-controls select, .strategy-controls input {
-            padding: 8px;
-            border: 1px solid #ced4da;
-            border-radius: 6px;
-        }
-
-        .canvas-container {
-            width: 100%;
-            height: 220px;
-            background: #ffffff;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            padding: 10px;
-        }
-
-        canvas {
-            width: 100%;
-            height: 100%;
-        }
-
-        .strategy-metrics {
-            display: flex;
-            justify-content: space-between;
-            margin-top: 15px;
-            padding: 10px;
-            background: #fff;
-            border-radius: 6px;
-            border: 1px solid #e0e0e0;
-            font-size: 0.9em;
-            text-align: center;
-        }
-
-        .strategy-metrics div {
-            flex: 1;
-        }
-
-        .strategy-metrics strong {
-            display: block;
-            color: #007bff;
-            font-size: 1.1em;
-        }
-
-        /* Form Controls */
-        .form-group {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-        }
-
-        .form-group input {
-            padding: 10px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            flex: 1;
-            min-width: 110px;
-        }
-
-        .form-group button {
-            padding: 10px 16px;
-            background-color: #28a745;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        /* Bill List Items */
-        .bill-list {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-
-        .bill-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 12px;
-            border: 1px solid #e0e0e0;
-            border-radius: 6px;
-            margin-bottom: 10px;
-            background-color: #fafafa;
-        }
-
-        .bill-info {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .bill-name {
-            font-weight: bold;
-            color: #333;
-        }
-
-        .bill-details {
-            font-size: 0.85em;
-            color: #666;
-        }
-
-        .actions {
-            display: flex;
-            gap: 5px;
-        }
-
-        .btn {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.8em;
-        }
-
+        .bill-list { list-style: none; padding: 0; margin: 0; }
+        .bill-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #e0e0e0; border-radius: 6px; margin-bottom: 10px; background-color: #fafafa; }
+        .bill-info { display: flex; flex-direction: column; gap: 4px; }
+        .bill-name { font-weight: bold; color: #333; }
+        .bill-details { font-size: 0.85em; color: #666; }
+        
+        .actions { display: flex; gap: 5px; }
+        .btn { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em; }
         .btn-paid { background-color: #007bff; color: white; }
         .btn-delete { background-color: #dc3545; color: white; }
 
-        /* Status Colors */
         .status-overdue { border-left: 5px solid #dc3545; background-color: #fff8f8; }
         .status-upcoming { border-left: 5px solid #ffc107; }
         .status-paid { border-left: 5px solid #28a745; opacity: 0.65; }
         .status-paid .bill-name { text-decoration: line-through; }
 
-        .badge {
-            font-size: 0.75em;
-            padding: 2px 6px;
-            border-radius: 3px;
-            color: white;
-            display: inline-block;
-            margin-left: 5px;
-        }
+        .badge { font-size: 0.75em; padding: 2px 6px; border-radius: 3px; color: white; display: inline-block; margin-left: 5px; }
         .badge-overdue { background-color: #dc3545; }
         .badge-paid { background-color: #28a745; }
         .badge-upcoming { background-color: #ffc107; color: #333; }
@@ -335,16 +91,9 @@
 <div class="container">
     <div class="header-bar">
         <h2>Bill & Debt Reminder</h2>
-        <span id="pwaStatus" style="font-size: 0.8em; color: #28a745; font-weight: bold;">● App Ready</span>
+        <span style="font-size: 0.8em; color: #28a745; font-weight: bold;">● App Ready</span>
     </div>
 
-    <!-- PWA Install Banner -->
-    <div id="installBanner" class="install-banner">
-        <span>Install Bill Tracker app on your device for quick access offline.</span>
-        <button id="installBtn" class="btn-install">Install App</button>
-    </div>
-
-    <!-- Summary Card -->
     <div class="summary-card">
         <div>
             <h3 id="totalMinPayments">$0.00</h3>
@@ -356,7 +105,6 @@
         </div>
     </div>
 
-    <!-- Bulk Import Section -->
     <div class="import-section">
         <h3>Bulk Paste & Import Bills</h3>
         <textarea id="importInput" placeholder="Paste raw table or plain list here..."></textarea>
@@ -366,7 +114,6 @@
         </div>
     </div>
 
-    <!-- Strategy Planner Section -->
     <div class="strategy-section">
         <h3>Payoff Strategy Projection</h3>
         <div class="strategy-controls">
@@ -378,7 +125,7 @@
                 </select>
             </div>
             <div>
-                <label for="extraPayment">Extra Monthly Cash ($): </label>
+                <label for="extraPayment">Extra Towards Principal ($ / mo): </label>
                 <input type="number" id="extraPayment" value="200" min="0" step="25" oninput="updatePayoffProjection()">
             </div>
         </div>
@@ -399,7 +146,6 @@
         </div>
     </div>
 
-    <!-- Single Bill Entry Form -->
     <form id="billForm" class="form-group">
         <input type="text" id="billName" placeholder="Bill Name" required>
         <input type="number" id="billAmount" placeholder="Min Payment ($)" step="0.01" required>
@@ -409,60 +155,10 @@
         <button type="submit">Add Bill</button>
     </form>
 
-    <!-- Bill List -->
     <ul id="billList" class="bill-list"></ul>
 </div>
 
 <script>
-    // PWA Service Worker Registration using Data URL
-    if ('serviceWorker' in navigator) {
-        const swCode = `
-            const CACHE_NAME = 'bill-tracker-v1';
-            self.addEventListener('install', (e) => {
-                e.waitUntil(
-                    caches.open(CACHE_NAME).then((cache) => {
-                        return cache.addAll(['./']);
-                    })
-                );
-            });
-            self.addEventListener('fetch', (e) => {
-                e.respondWith(
-                    caches.match(e.request).then((res) => res || fetch(e.request))
-                );
-            });
-        `;
-        const blob = new Blob([swCode], { type: 'text/javascript' });
-        const swUrl = URL.createObjectURL(blob);
-
-        navigator.serviceWorker.register(swUrl)
-            .then(() => console.log('PWA SW Registered'))
-            .catch(err => console.log('SW Reg Failed:', err));
-    }
-
-    // PWA Prompt Handling
-    let deferredPrompt;
-    const installBanner = document.getElementById('installBanner');
-    const installBtn = document.getElementById('installBtn');
-
-    window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredPrompt = e;
-        installBanner.style.display = 'flex';
-    });
-
-    installBtn.addEventListener('click', () => {
-        if (deferredPrompt) {
-            deferredPrompt.prompt();
-            deferredPrompt.userChoice.then((choiceResult) => {
-                if (choiceResult.outcome === 'accepted') {
-                    installBanner.style.display = 'none';
-                }
-                deferredPrompt = null;
-            });
-        }
-    });
-
-    // Main Tool Logic
     let bills = JSON.parse(localStorage.getItem('debt_bills')) || [];
 
     const billForm = document.getElementById('billForm');
@@ -485,6 +181,14 @@
         saveAndRender();
         billForm.reset();
     });
+
+    function estimateAprByName(name) {
+        const lower = name.toLowerCase();
+        if (lower.includes('car') || lower.includes('auto')) return 6.5;
+        if (lower.includes('tax') || lower.includes('state')) return 5.0;
+        if (lower.includes('personal loan') || lower.includes('loan')) return 10.5;
+        return 21.9; // Default Credit Card APR
+    }
 
     function parseAndImport() {
         const rawText = document.getElementById('importInput').value.trim();
@@ -520,7 +224,7 @@
                         name: name,
                         amount: amount,
                         balance: balance,
-                        rate: 19.9,
+                        rate: estimateAprByName(name),
                         day: day,
                         paid: false
                     });
@@ -558,7 +262,7 @@
                         name: name,
                         amount: amount,
                         balance: balance,
-                        rate: 19.9,
+                        rate: estimateAprByName(name),
                         day: day,
                         paid: false
                     });
@@ -581,12 +285,7 @@
     }
 
     function togglePaid(id) {
-        bills = bills.map(bill => {
-            if (bill.id === id) {
-                return { ...bill, paid: !bill.paid };
-            }
-            return bill;
-        });
+        bills = bills.map(bill => bill.id === id ? { ...bill, paid: !bill.paid } : bill);
         saveAndRender();
     }
 
@@ -632,7 +331,7 @@
                 badgeHtml = '<span class="badge badge-overdue">Past Due Day</span>';
             }
 
-            const balanceText = bill.balance > 0 ? ` | Balance: $${parseFloat(bill.balance).toLocaleString('en-US', {minimumFractionDigits: 2})}` : '';
+            const balanceText = bill.balance > 0 ? ` | Balance: $${parseFloat(bill.balance).toLocaleString('en-US', {minimumFractionDigits: 2})} (@${bill.rate}%)` : '';
 
             li.className = `bill-item ${statusClass}`;
             li.innerHTML = `
@@ -657,82 +356,81 @@
         document.getElementById('totalMinPayments').innerText = '$' + minTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
         document.getElementById('totalBalance').innerText = '$' + balTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
     }
-function updatePayoffProjection() {
-    const strategy = document.getElementById('strategyType').value;
-    const extraPayment = parseFloat(document.getElementById('extraPayment').value) || 0;
 
-    let activeDebts = bills
-        .filter(b => b.balance > 0)
-        .map(b => ({
-            name: b.name,
-            balance: parseFloat(b.balance),
-            minPayment: parseFloat(b.amount),
-            monthlyRate: (parseFloat(b.rate || 19.9) / 100) / 12
-        }));
+    function updatePayoffProjection() {
+        const strategy = document.getElementById('strategyType').value;
+        const extraPayment = parseFloat(document.getElementById('extraPayment').value) || 0;
 
-    if (activeDebts.length === 0) {
-        drawCanvasChart([0]);
-        document.getElementById('metricMonths').innerText = '0 Months';
-        document.getElementById('metricInterest').innerText = '$0.00';
-        return;
-    }
+        let activeDebts = bills
+            .filter(b => b.balance > 0)
+            .map(b => ({
+                name: b.name,
+                balance: parseFloat(b.balance),
+                minPayment: parseFloat(b.amount),
+                monthlyRate: (parseFloat(b.rate || 0) / 100) / 12
+            }));
 
-    let totalBalanceHistory = [activeDebts.reduce((acc, d) => acc + d.balance, 0)];
-    let totalInterestPaid = 0;
-    let monthCount = 0;
-    const maxMonths = 600; // Cap at 50 years to prevent infinite loops
-
-    while (monthCount < maxMonths) {
-        let totalCurrentBal = activeDebts.reduce((acc, d) => acc + d.balance, 0);
-        if (totalCurrentBal <= 0) break;
-
-        monthCount++;
-
-        // 1. Calculate monthly interest on current starting balance
-        activeDebts.forEach(d => {
-            if (d.balance > 0) {
-                let interest = d.balance * d.monthlyRate;
-                totalInterestPaid += interest;
-                d.balance += interest; // Add interest accrued
-            }
-        });
-
-        // 2. Pay minimum required payments across all debts
-        let extraPool = extraPayment;
-        activeDebts.forEach(d => {
-            if (d.balance > 0) {
-                let pay = Math.min(d.balance, d.minPayment);
-                d.balance -= pay;
-            }
-        });
-
-        // 3. Sort debts to apply extra cash based on strategy
-        if (strategy === 'snowball') {
-            activeDebts.sort((a, b) => a.balance - b.balance);
-        } else {
-            activeDebts.sort((a, b) => b.monthlyRate - a.monthlyRate);
+        if (activeDebts.length === 0) {
+            drawCanvasChart([0]);
+            document.getElementById('metricMonths').innerText = '0 Months';
+            document.getElementById('metricInterest').innerText = '$0.00';
+            return;
         }
 
-        // 4. Apply extra cash to priority target
-        for (let d of activeDebts) {
-            if (d.balance > 0 && extraPool > 0) {
-                let extra = Math.min(d.balance, extraPool);
-                d.balance -= extra;
-                extraPool -= extra;
+        let totalBalanceHistory = [activeDebts.reduce((acc, d) => acc + d.balance, 0)];
+        let totalInterestPaid = 0;
+        let monthCount = 0;
+
+        while (monthCount < 360) {
+            let currentTotalBal = activeDebts.reduce((acc, d) => acc + d.balance, 0);
+            if (currentTotalBal <= 0.01) break;
+
+            monthCount++;
+
+            // 1. Pay base minimums first
+            let totalAvailableExtra = extraPayment;
+            activeDebts.forEach(d => {
+                if (d.balance > 0) {
+                    let pay = Math.min(d.balance, d.minPayment);
+                    d.balance -= pay;
+                }
+            });
+
+            // 2. Sort debts by selected strategy for Extra Payment application
+            if (strategy === 'snowball') {
+                activeDebts.sort((a, b) => a.balance - b.balance);
+            } else {
+                activeDebts.sort((a, b) => b.monthlyRate - a.monthlyRate);
             }
+
+            // 3. Apply Extra Principal Payment to prioritized target
+            for (let d of activeDebts) {
+                if (d.balance > 0 && totalAvailableExtra > 0) {
+                    let extra = Math.min(d.balance, totalAvailableExtra);
+                    d.balance -= extra;
+                    totalAvailableExtra -= extra;
+                }
+            }
+
+            // 4. Calculate interest on remaining balance *after* payments
+            activeDebts.forEach(d => {
+                if (d.balance > 0) {
+                    let interest = d.balance * d.monthlyRate;
+                    totalInterestPaid += interest;
+                    d.balance += interest;
+                }
+            });
+
+            let monthEndTotal = activeDebts.reduce((acc, d) => acc + Math.max(0, d.balance), 0);
+            totalBalanceHistory.push(monthEndTotal);
         }
 
-        let monthEndTotal = activeDebts.reduce((acc, d) => acc + Math.max(0, d.balance), 0);
-        totalBalanceHistory.push(monthEndTotal);
+        const years = (monthCount / 12).toFixed(1);
+        document.getElementById('metricMonths').innerText = `${monthCount} Months (${years} Yrs)`;
+        document.getElementById('metricInterest').innerText = '$' + totalInterestPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+        drawCanvasChart(totalBalanceHistory);
     }
-
-    const years = (monthCount / 12).toFixed(1);
-    document.getElementById('metricMonths').innerText = `${monthCount} Months (${years} Yrs)`;
-    document.getElementById('metricInterest').innerText = '$' + totalInterestPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
-
-    drawCanvasChart(totalBalanceHistory);
-}
-
 
     function drawCanvasChart(data) {
         const canvas = document.getElementById('customPayoffChart');
@@ -746,7 +444,6 @@ function updatePayoffProjection() {
         const padding = 35;
 
         ctx.clearRect(0, 0, width, height);
-
         if (data.length <= 1) return;
 
         const maxVal = Math.max(...data);
@@ -776,11 +473,8 @@ function updatePayoffProjection() {
             let x = padding + (index * xStep);
             let y = height - padding - ((val / maxVal) * (height - 2 * padding));
 
-            if (index === 0) {
-                ctx.moveTo(x, y);
-            } else {
-                ctx.lineTo(x, y);
-            }
+            if (index === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
         });
         ctx.stroke();
 
@@ -805,13 +499,7 @@ function updatePayoffProjection() {
 
     function escapeHtml(str) {
         return String(str).replace(/[&<>'"]/g, 
-            tag => ({
-                '&': '&amp;',
-                '<': '&lt;',
-                '>': '&gt;',
-                "'": '&#39;',
-                '"': '&quot;'
-            }[tag] || tag)
+            tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
         );
     }
 
