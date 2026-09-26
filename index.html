@@ -40,7 +40,7 @@
         .summary-card p { margin: 5px 0 0 0; font-size: 0.85em; color: #555; }
 
         .import-section, .strategy-section { background: #f8f9fa; border: 1px solid #e2e8f0; border-radius: 8px; padding: 18px; margin-bottom: 25px; }
-        .import-section textarea { width: 100%; height: 140px; padding: 10px; border: 1px solid #ced4da; border-radius: 6px; font-family: monospace; font-size: 0.85em; resize: vertical; margin: 10px 0; }
+        .import-section textarea { width: 100%; height: 120px; padding: 10px; border: 1px solid #ced4da; border-radius: 6px; font-family: monospace; font-size: 0.85em; resize: vertical; margin: 10px 0; }
         .import-actions { display: flex; gap: 10px; justify-content: flex-end; }
         
         .btn-import { background-color: #17a2b8; color: white; padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
@@ -108,7 +108,7 @@
 
     <div class="import-section">
         <h3>Bulk Paste & Import Bills</h3>
-        <textarea id="importInput" placeholder="Paste your debt list here..."></textarea>
+        <textarea id="importInput" placeholder="Paste your debt list or table here..."></textarea>
         <div class="import-actions">
             <button class="btn-clear-all" onclick="clearAllBills()">Clear All Saved</button>
             <button class="btn-import" onclick="parseAndImport()">Parse & Import Bills</button>
@@ -151,7 +151,7 @@
         <input type="text" id="billName" placeholder="Bill Name" required>
         <input type="number" id="billAmount" placeholder="Min Payment ($)" step="0.01" required>
         <input type="number" id="billBalance" placeholder="Total Balance ($)" step="0.01">
-        <input type="number" id="billRate" placeholder="APR (%)" step="0.1" value="30.0">
+        <input type="number" id="billRate" placeholder="APR (%)" step="0.1" value="19.9">
         <input type="number" id="billDay" placeholder="Due Day (1-31)" min="1" max="31" required>
         <button type="submit">Add Bill</button>
     </form>
@@ -189,19 +189,19 @@
 
         saveAndRender();
         billForm.reset();
-        document.getElementById('billRate').value = '30.0';
+        document.getElementById('billRate').value = '19.9';
     });
 
     function estimateAprByName(name) {
         const lower = name.toLowerCase();
         if (lower.includes('car') || lower.includes('auto')) return 6.5;
-        if (lower.includes('tax') || lower.includes('state')) return 7.0;
+        if (lower.includes('tax') || lower.includes('state')) return 5.0;
         if (lower.includes('personal loan') || lower.includes('loan')) return 10.5;
-        return 30.0;
+        return 21.9;
     }
 
     function escapeHtml(text) {
-        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
     function ordinalSuffix(i) {
@@ -218,25 +218,51 @@
 
         const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         let addedCount = 0;
+        const ignoredKeywords = ['due date', 'debt / bill', 'priority status', 'action / snowball', 'totals', 'min. payment'];
 
-        lines.forEach((line) => {
-            // Extract Due Day (e.g., 1st, 28th, 7th)
-            const dayMatch = line.match(/\b([1-9]|[12]\d|3[01])(st|nd|rd|th)\b/i);
-            let day = dayMatch ? parseInt(dayMatch[1], 10) : 1;
+        let i = 0;
+        while (i < lines.length) {
+            let line = lines[i];
 
-            // Extract Balance (e.g. $10000.00 Balance)
-            const balanceMatch = line.match(/\$([\d,]+(?:\.\d+)?)\s*Balance/i);
-            let balance = balanceMatch ? parseFloat(balanceMatch[1].replace(/,/g, '')) : 0;
+            if (ignoredKeywords.some(kw => line.toLowerCase().includes(kw)) || line === '') {
+                i++;
+                continue;
+            }
 
-            // Extract Min Payment (e.g. $350.00 Min)
-            const minMatch = line.match(/\$([\d,]+(?:\.\d+)?)\s*Min/i);
-            let amount = minMatch ? parseFloat(minMatch[1].replace(/,/g, '')) : 0;
+            const dateMatch = line.match(/^(\d{1,2})(st|nd|rd|th)?$/i);
 
-            // Fallback: If no "Balance" or "Min" keywords exist, pull raw currency amounts
-            if (balance === 0 && amount === 0) {
-                const genericDollarMatches = line.match(/\$([\d,]+(?:\.\d+)?)/g);
-                if (genericDollarMatches) {
-                    const parsedNums = genericDollarMatches.map(n => parseFloat(n.replace(/[\$,]/g, ''))).filter(n => !isNaN(n));
+            if (dateMatch && (i + 4) < lines.length) {
+                const day = parseInt(dateMatch[1], 10);
+                const name = lines[i + 1];
+                const rawBalance = lines[i + 3];
+                const rawMin = lines[i + 4];
+
+                const balance = parseFloat(rawBalance.replace(/[\$,—]/g, '')) || 0;
+                const amount = parseFloat(rawMin.replace(/[\$,—]/g, '')) || 0;
+
+                if (name && !ignoredKeywords.some(kw => name.toLowerCase().includes(kw))) {
+                    bills.push({
+                        id: Date.now() + Math.random(),
+                        name: name,
+                        amount: amount,
+                        balance: balance,
+                        rate: estimateAprByName(name),
+                        day: day,
+                        paid: false
+                    });
+                    addedCount++;
+                }
+                i += 6;
+            } else {
+                const numbers = line.match(/\$?[\d,]+(\.\d+)?/g);
+                const dayMatch = line.match(/\b([1-9]|[12]\d|3[01])(st|nd|rd|th)?\b/i);
+
+                let day = dayMatch ? parseInt(dayMatch[1], 10) : 1;
+                let amount = 0;
+                let balance = 0;
+
+                if (numbers) {
+                    const parsedNums = numbers.map(n => parseFloat(n.replace(/[\$,]/g, ''))).filter(n => !isNaN(n));
                     if (parsedNums.length >= 2) {
                         balance = Math.max(...parsedNums);
                         amount = Math.min(...parsedNums);
@@ -244,27 +270,33 @@
                         amount = parsedNums[0];
                     }
                 }
+
+                let name = line
+                    .replace(/\$?[\d,]+(\.\d+)?/g, '')
+                    .replace(/\b([1-9]|[12]\d|3[01])(st|nd|rd|th)?\b/gi, '')
+                    .replace(/Balance|Min|Payment|Pay|due|standard|minimum|Target|Target:/gi, '')
+                    .replace(/[-|#$]/g, ' ')
+                    .trim();
+
+                if (name && !ignoredKeywords.some(kw => name.toLowerCase().includes(kw))) {
+                    bills.push({
+                        id: Date.now() + Math.random(),
+                        name: name,
+                        amount: amount,
+                        balance: balance,
+                        rate: estimateAprByName(name),
+                        day: day,
+                        paid: false
+                    });
+                    addedCount++;
+                }
+                i++;
             }
-
-            // Extract Name (everything up to the first dash or dollar sign)
-            let name = line.split(/[-$]/)[0].trim();
-            if (!name) name = "Uncategorized Bill";
-
-            bills.push({
-                id: Date.now() + Math.random(),
-                name: name,
-                amount: amount,
-                balance: balance,
-                rate: estimateAprByName(name),
-                day: day,
-                paid: false
-            });
-            addedCount++;
-        });
+        }
 
         document.getElementById('importInput').value = '';
         saveAndRender();
-        alert(`Successfully imported ${addedCount} items!`);
+        alert(`Successfully imported ${addedCount} bills!`);
     }
 
     function clearAllBills() {
@@ -346,11 +378,11 @@
                 li.className = 'bill-item';
                 li.innerHTML = `
                     <div class="edit-form-inline">
-                        <input type="text" id="edit-name-${bill.id}" value="${escapeHtml(bill.name)}">
-                        <input type="number" id="edit-amount-${bill.id}" value="${bill.amount}" step="0.01">
-                        <input type="number" id="edit-balance-${bill.id}" value="${bill.balance}" step="0.01">
-                        <input type="number" id="edit-rate-${bill.id}" value="${bill.rate}" step="0.1">
-                        <input type="number" id="edit-day-${bill.id}" value="${bill.day}" min="1" max="31">
+                        <input type="text" id="edit-name-${bill.id}" value="${escapeHtml(bill.name)}" placeholder="Bill Name">
+                        <input type="number" id="edit-amount-${bill.id}" value="${bill.amount}" step="0.01" placeholder="Min Pay">
+                        <input type="number" id="edit-balance-${bill.id}" value="${bill.balance}" step="0.01" placeholder="Balance">
+                        <input type="number" id="edit-rate-${bill.id}" value="${bill.rate}" step="0.1" placeholder="APR %">
+                        <input type="number" id="edit-day-${bill.id}" value="${bill.day}" min="1" max="31" placeholder="Due Day">
                     </div>
                     <div class="actions">
                         <button class="btn btn-save" onclick="saveEdit(${bill.id})">Save</button>
@@ -417,105 +449,124 @@
             return;
         }
 
-        if (strategy === 'snowball') {
-            activeDebts.sort((a, b) => a.balance - b.balance);
-        } else {
-            activeDebts.sort((a, b) => b.monthlyRate - a.monthlyRate);
-        }
-
+        let totalBalanceHistory = [activeDebts.reduce((acc, d) => acc + d.balance, 0)];
         let totalInterestPaid = 0;
-        let months = 0;
-        let balanceHistory = [];
+        let monthCount = 0;
 
-        let currentTotalBalance = activeDebts.reduce((sum, d) => sum + d.balance, 0);
-        balanceHistory.push(currentTotalBalance);
+        while (monthCount < 360) {
+            let currentTotalBal = activeDebts.reduce((acc, d) => acc + d.balance, 0);
+            if (currentTotalBal <= 0.01) break;
 
-        while (currentTotalBalance > 0.01 && months < 360) {
-            months++;
-            let extraAvailable = extraPayment;
+            monthCount++;
 
-            activeDebts.forEach(debt => {
-                if (debt.balance > 0) {
-                    let interest = debt.balance * debt.monthlyRate;
-                    debt.balance += interest;
-                    totalInterestPaid += interest;
+            // 1. Pay base minimum payments
+            let totalAvailableExtra = extraPayment;
+            activeDebts.forEach(d => {
+                if (d.balance > 0) {
+                    let pay = Math.min(d.balance, d.minPayment);
+                    d.balance -= pay;
                 }
             });
 
-            activeDebts.forEach(debt => {
-                if (debt.balance > 0) {
-                    let pay = Math.min(debt.balance, debt.minPayment);
-                    debt.balance -= pay;
-                    if (debt.balance <= 0) {
-                        extraAvailable += (debt.minPayment - pay);
-                        debt.balance = 0;
-                    }
-                } else {
-                    extraAvailable += debt.minPayment;
-                }
-            });
+            // 2. Sort debts based on payoff strategy
+            if (strategy === 'snowball') {
+                activeDebts.sort((a, b) => a.balance - b.balance);
+            } else {
+                activeDebts.sort((a, b) => b.monthlyRate - a.monthlyRate);
+            }
 
-            for (let debt of activeDebts) {
-                if (debt.balance > 0 && extraAvailable > 0) {
-                    let extraPay = Math.min(debt.balance, extraAvailable);
-                    debt.balance -= extraPay;
-                    extraAvailable -= extraPay;
-                    if (debt.balance <= 0) debt.balance = 0;
+            // 3. Apply Extra Payment to target debt
+            for (let d of activeDebts) {
+                if (d.balance > 0 && totalAvailableExtra > 0) {
+                    let extra = Math.min(d.balance, totalAvailableExtra);
+                    d.balance -= extra;
+                    totalAvailableExtra -= extra;
                 }
             }
 
-            currentTotalBalance = activeDebts.reduce((sum, d) => sum + d.balance, 0);
-            balanceHistory.push(currentTotalBalance);
+            // 4. Calculate monthly interest rounded up to cents
+            activeDebts.forEach(d => {
+                if (d.balance > 0) {
+                    let rawInterest = d.balance * d.monthlyRate;
+                    let roundedInterest = Math.ceil(rawInterest * 100) / 100;
+                    totalInterestPaid += roundedInterest;
+                    d.balance += roundedInterest;
+                }
+            });
+
+            let monthEndTotal = activeDebts.reduce((acc, d) => acc + Math.max(0, d.balance), 0);
+            totalBalanceHistory.push(monthEndTotal);
         }
 
-        document.getElementById('metricMonths').innerText = `${months} Months (${(months / 12).toFixed(1)} Yrs)`;
+        const years = (monthCount / 12).toFixed(1);
+        document.getElementById('metricMonths').innerText = `${monthCount} Months (${years} Yrs)`;
         document.getElementById('metricInterest').innerText = '$' + totalInterestPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
-        drawCanvasChart(balanceHistory);
+        drawCanvasChart(totalBalanceHistory);
     }
 
-    function drawCanvasChart(history) {
+    function drawCanvasChart(data) {
         const canvas = document.getElementById('customPayoffChart');
-        if (!canvas) return;
-
         const ctx = canvas.getContext('2d');
+
         canvas.width = canvas.parentElement.clientWidth;
         canvas.height = canvas.parentElement.clientHeight;
 
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const width = canvas.width;
+        const height = canvas.height;
+        const padding = 35;
 
-        if (history.length <= 1) return;
+        ctx.clearRect(0, 0, width, height);
+        if (data.length <= 1) return;
 
-        const padding = 30;
-        const width = canvas.width - (padding * 2);
-        const height = canvas.height - (padding * 2);
+        const maxVal = Math.max(...data);
 
-        const maxBal = Math.max(...history);
-        const stepX = width / (history.length - 1);
-
+        ctx.strokeStyle = "#e0e0e0";
+        ctx.lineWidth = 1;
         ctx.beginPath();
-        ctx.strokeStyle = '#007bff';
-        ctx.lineWidth = 2;
-
-        history.forEach((val, i) => {
-            const x = padding + (i * stepX);
-            const y = canvas.height - padding - ((val / maxBal) * height);
-            if (i === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
-        });
-
+        for (let i = 0; i <= 4; i++) {
+            let y = padding + (i * (height - 2 * padding) / 4);
+            ctx.moveTo(padding, y);
+            ctx.lineTo(width - padding, y);
+            
+            ctx.fillStyle = "#888";
+            ctx.font = "10px Arial";
+            let valLabel = Math.round(maxVal - (i * maxVal / 4));
+            ctx.fillText("$" + valLabel.toLocaleString(), 5, y + 3);
+        }
         ctx.stroke();
 
-        ctx.lineTo(padding + ((history.length - 1) * stepX), canvas.height - padding);
-        ctx.lineTo(padding, canvas.height - padding);
-        ctx.fillStyle = 'rgba(0, 123, 255, 0.1)';
+        ctx.strokeStyle = "#007bff";
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+
+        const xStep = (width - 2 * padding) / (data.length - 1);
+
+        data.forEach((val, index) => {
+            let x = padding + (index * xStep);
+            let y = height - padding - ((val / maxVal) * (height - 2 * padding));
+
+            if (index === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+        ctx.stroke();
+
+        ctx.lineTo(width - padding, height - padding);
+        ctx.lineTo(padding, height - padding);
+        ctx.fillStyle = "rgba(0, 123, 255, 0.08)";
         ctx.fill();
+
+        ctx.fillStyle = "#555";
+        ctx.font = "11px Arial";
+        ctx.fillText("Start", padding, height - 10);
+        ctx.fillText(`Payoff (${data.length - 1}m)`, width - padding - 65, height - 10);
     }
 
-    window.addEventListener('DOMContentLoaded', () => {
-        renderBills();
-        updatePayoffProjection();
-    });
+    window.addEventListener('resize', updatePayoffProjection);
+
+    renderBills();
+    updatePayoffProjection();
 </script>
+
 </body>
 </html>
