@@ -189,7 +189,7 @@
         if (lower.includes('car') || lower.includes('auto')) return 6.5;
         if (lower.includes('tax') || lower.includes('state')) return 7.0;
         if (lower.includes('personal loan') || lower.includes('loan')) return 10.5;
-        return 30.0; // Default cards to 30.0 APR
+        return 30.0;
     }
 
     function escapeHtml(text) {
@@ -415,13 +415,14 @@
         let months = 0;
         let balanceHistory = [];
 
-        let currentTotalBalance = activeDebts.reduce((sum, d) => sum + d.balance, 0);
+        let currentTotalBalance = activeDebts.reduce((sum, debt) => sum + debt.balance, 0);
         balanceHistory.push(currentTotalBalance);
 
         while (currentTotalBalance > 0.01 && months < 360) {
             months++;
             let extraAvailable = extraPayment;
 
+            // 1. Calculate monthly interest on remaining balances
             activeDebts.forEach(debt => {
                 if (debt.balance > 0) {
                     let interest = debt.balance * debt.monthlyRate;
@@ -430,6 +431,7 @@
                 }
             });
 
+            // 2. Pay minimum payments
             activeDebts.forEach(debt => {
                 if (debt.balance > 0) {
                     let pay = Math.min(debt.balance, debt.minPayment);
@@ -443,8 +445,70 @@
                 }
             });
 
+            // 3. Apply extra snowball payment
             for (let debt of activeDebts) {
                 if (debt.balance > 0 && extraAvailable > 0) {
                     let extraPay = Math.min(debt.balance, extraAvailable);
                     debt.balance -= extraPay;
-            
+                    extraAvailable -= extraPay;
+                    if (debt.balance <= 0) debt.balance = 0;
+                }
+            }
+
+            // Fixed: correctly reference 'debt' inside the reduce function
+            currentTotalBalance = activeDebts.reduce((sum, debt) => sum + debt.balance, 0);
+            balanceHistory.push(currentTotalBalance);
+        }
+
+        document.getElementById('metricMonths').innerText = `${months} Months (${(months / 12).toFixed(1)} Yrs)`;
+        document.getElementById('metricInterest').innerText = '$' + totalInterestPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+
+        drawCanvasChart(balanceHistory);
+    }
+
+    function drawCanvasChart(history) {
+        const canvas = document.getElementById('customPayoffChart');
+        if (!canvas) return;
+        
+        const ctx = canvas.getContext('2d');
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (history.length <= 1) return;
+
+        const padding = 30;
+        const width = canvas.width - (padding * 2);
+        const height = canvas.height - (padding * 2);
+
+        const maxBal = Math.max(...history);
+        const stepX = width / (history.length - 1);
+
+        ctx.beginPath();
+        ctx.strokeStyle = '#007bff';
+        ctx.lineWidth = 2;
+
+        history.forEach((val, i) => {
+            const x = padding + (i * stepX);
+            const y = canvas.height - padding - ((val / maxBal) * height);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        });
+
+        ctx.stroke();
+
+        ctx.lineTo(padding + ((history.length - 1) * stepX), canvas.height - padding);
+        ctx.lineTo(padding, canvas.height - padding);
+        ctx.fillStyle = 'rgba(0, 123, 255, 0.1)';
+        ctx.fill();
+    }
+
+    // Trigger initial render after DOM is ready
+    window.addEventListener('DOMContentLoaded', () => {
+        renderBills();
+        updatePayoffProjection();
+    });
+</script>
+</body>
+</html>
