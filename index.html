@@ -4,10 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#007bff">
-    <meta name="description" content="Offline-capable PWA Bill and Debt Reminder Tool with payoff strategy calculator.">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Bill Tracker">
+    <meta name="description" content="Offline-capable PWA Bill and Debt Reminder Tool with accurate payoff strategy calculator.">
     <title>Bill & Debt Reminder Tool</title>
 
     <script>
@@ -21,8 +18,7 @@
             "icons": [{
                 "src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512' fill='%23007bff'><rect width='512' height='512' rx='100' fill='%23007bff'/><text x='50%' y='55%' dominant-baseline='middle' text-anchor='middle' font-size='280' fill='white' font-weight='bold' font-family='sans-serif'>$</text></svg>",
                 "sizes": "192x192 512x512",
-                "type": "image/svg+xml",
-                "purpose": "any maskable"
+                "type": "image/svg+xml"
             }]
         };
         const manifestBlob = new Blob([JSON.stringify(manifest)], {type: 'application/json'});
@@ -33,7 +29,7 @@
     </script>
 
     <style>
-        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
         body { background-color: #f4f6f8; margin: 0; padding: 20px 10px; display: flex; justify-content: center; }
         .container { width: 100%; max-width: 850px; background: #ffffff; padding: 25px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
         .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
@@ -112,7 +108,7 @@
 
     <div class="import-section">
         <h3>Bulk Paste & Import Bills</h3>
-        <textarea id="importInput" placeholder="Paste raw table or plain list here..."></textarea>
+        <textarea id="importInput" placeholder="Paste raw list here..."></textarea>
         <div class="import-actions">
             <button class="btn-clear-all" onclick="clearAllBills()">Clear All Saved</button>
             <button class="btn-import" onclick="parseAndImport()">Parse & Import Bills</button>
@@ -145,7 +141,7 @@
                 <strong id="metricMonths">0 Months</strong>
             </div>
             <div>
-                <span>Est. Interest Paid</span>
+                <span>Est. Total Interest Paid</span>
                 <strong id="metricInterest">$0.00</strong>
             </div>
         </div>
@@ -155,7 +151,7 @@
         <input type="text" id="billName" placeholder="Bill Name" required>
         <input type="number" id="billAmount" placeholder="Min Payment ($)" step="0.01" required>
         <input type="number" id="billBalance" placeholder="Total Balance ($)" step="0.01">
-        <input type="number" id="billRate" placeholder="APR (%)" step="0.1" value="19.9">
+        <input type="number" id="billRate" placeholder="APR (%)" step="0.1" value="30.0">
         <input type="number" id="billDay" placeholder="Due Day (1-31)" min="1" max="31" required>
         <button type="submit">Add Bill</button>
     </form>
@@ -191,9 +187,21 @@
     function estimateAprByName(name) {
         const lower = name.toLowerCase();
         if (lower.includes('car') || lower.includes('auto')) return 6.5;
-        if (lower.includes('tax') || lower.includes('state')) return 5.0;
+        if (lower.includes('tax') || lower.includes('state')) return 7.0;
         if (lower.includes('personal loan') || lower.includes('loan')) return 10.5;
-        return 21.9;
+        return 30.0; // Default cards to 30.0 APR
+    }
+
+    function escapeHtml(text) {
+        return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function ordinalSuffix(i) {
+        const j = i % 10, k = i % 100;
+        if (j === 1 && k !== 11) return i + "st";
+        if (j === 2 && k !== 12) return i + "nd";
+        if (j === 3 && k !== 13) return i + "rd";
+        return i + "th";
     }
 
     function parseAndImport() {
@@ -202,85 +210,49 @@
 
         const lines = rawText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         let addedCount = 0;
-        const ignoredKeywords = ['due date', 'debt / bill', 'priority status', 'action / snowball', 'totals', 'min. payment'];
 
-        let i = 0;
-        while (i < lines.length) {
-            let line = lines[i];
+        lines.forEach((line) => {
+            const numbers = line.match(/\$?[\d,]+(\.\d+)?/g);
+            const dayMatch = line.match(/\b([1-9]|[12]\d|3[01])(st|nd|rd|th)?\b/i);
 
-            if (ignoredKeywords.some(kw => line.toLowerCase().includes(kw)) || line === '') {
-                i++;
-                continue;
+            let day = dayMatch ? parseInt(dayMatch[1], 10) : 1;
+            let amount = 0;
+            let balance = 0;
+
+            if (numbers) {
+                const parsedNums = numbers.map(n => parseFloat(n.replace(/[\$,]/g, ''))).filter(n => !isNaN(n));
+                if (parsedNums.length >= 2) {
+                    balance = Math.max(...parsedNums);
+                    amount = Math.min(...parsedNums);
+                } else if (parsedNums.length === 1) {
+                    amount = parsedNums[0];
+                }
             }
 
-            const dateMatch = line.match(/^(\d{1,2})(st|nd|rd|th)?$/i);
+            let name = line
+                .replace(/\$?[\d,]+(\.\d+)?/g, '')
+                .replace(/\b([1-9]|[12]\d|3[01])(st|nd|rd|th)?\b/gi, '')
+                .replace(/Balance|Min|Payment|Pay|due|standard|minimum|Target/gi, '')
+                .replace(/[-|#$]/g, ' ')
+                .trim();
 
-            if (dateMatch && (i + 4) < lines.length) {
-                const day = parseInt(dateMatch[1], 10);
-                const name = lines[i + 1];
-                const rawBalance = lines[i + 3];
-                const rawMin = lines[i + 4];
-
-                const balance = parseFloat(rawBalance.replace(/[\$,—]/g, '')) || 0;
-                const amount = parseFloat(rawMin.replace(/[\$,—]/g, '')) || 0;
-
-                if (name && !ignoredKeywords.some(kw => name.toLowerCase().includes(kw))) {
-                    bills.push({
-                        id: Date.now() + Math.random(),
-                        name: name,
-                        amount: amount,
-                        balance: balance,
-                        rate: estimateAprByName(name),
-                        day: day,
-                        paid: false
-                    });
-                    addedCount++;
-                }
-                i += 6;
-            } else {
-                const numbers = line.match(/\$?[\d,]+(\.\d+)?/g);
-                const dayMatch = line.match(/\b([1-9]|[12]\d|3[01])(st|nd|rd|th)?\b/i);
-
-                let day = dayMatch ? parseInt(dayMatch[1], 10) : 1;
-                let amount = 0;
-                let balance = 0;
-
-                if (numbers) {
-                    const parsedNums = numbers.map(n => parseFloat(n.replace(/[\$,]/g, ''))).filter(n => !isNaN(n));
-                    if (parsedNums.length >= 2) {
-                        balance = Math.max(...parsedNums);
-                        amount = Math.min(...parsedNums);
-                    } else if (parsedNums.length === 1) {
-                        amount = parsedNums[0];
-                    }
-                }
-
-                let name = line
-                    .replace(/\$?[\d,]+(\.\d+)?/g, '')
-                    .replace(/\b([1-9]|[12]\d|3[01])(st|nd|rd|th)?\b/gi, '')
-                    .replace(/Balance|Min|Payment|Pay|due|standard|minimum|Target|Target:/gi, '')
-                    .replace(/[-|#$]/g, ' ')
-                    .trim();
-
-                if (name && !ignoredKeywords.some(kw => name.toLowerCase().includes(kw))) {
-                    bills.push({
-                        id: Date.now() + Math.random(),
-                        name: name,
-                        amount: amount,
-                        balance: balance,
-                        rate: estimateAprByName(name),
-                        day: day,
-                        paid: false
-                    });
-                    addedCount++;
-                }
-                i++;
+            if (name) {
+                bills.push({
+                    id: Date.now() + Math.random(),
+                    name: name,
+                    amount: amount,
+                    balance: balance,
+                    rate: estimateAprByName(name),
+                    day: day,
+                    paid: false
+                });
+                addedCount++;
             }
-        }
+        });
 
         document.getElementById('importInput').value = '';
         saveAndRender();
-        alert(`Successfully imported ${addedCount} bills!`);
+        alert(`Successfully imported ${addedCount} items!`);
     }
 
     function clearAllBills() {
@@ -343,7 +315,7 @@
         billList.innerHTML = '';
 
         if (bills.length === 0) {
-            billList.innerHTML = '<p style="text-align: center; color: #888;">No bills added yet. Paste a list above to populate.</p>';
+            billList.innerHTML = '<p style="text-align: center; color: #888;">No bills added yet.</p>';
             updateSummary(0, 0);
             return;
         }
@@ -359,15 +331,14 @@
             const li = document.createElement('li');
 
             if (editingId === bill.id) {
-                // Inline Edit Form Mode
                 li.className = 'bill-item';
                 li.innerHTML = `
                     <div class="edit-form-inline">
-                        <input type="text" id="edit-name-${bill.id}" value="${escapeHtml(bill.name)}" placeholder="Bill Name">
-                        <input type="number" id="edit-amount-${bill.id}" value="${bill.amount}" step="0.01" placeholder="Min Pay">
-                        <input type="number" id="edit-balance-${bill.id}" value="${bill.balance}" step="0.01" placeholder="Balance">
-                        <input type="number" id="edit-rate-${bill.id}" value="${bill.rate}" step="0.1" placeholder="APR %">
-                        <input type="number" id="edit-day-${bill.id}" value="${bill.day}" min="1" max="31" placeholder="Due Day">
+                        <input type="text" id="edit-name-${bill.id}" value="${escapeHtml(bill.name)}">
+                        <input type="number" id="edit-amount-${bill.id}" value="${bill.amount}" step="0.01">
+                        <input type="number" id="edit-balance-${bill.id}" value="${bill.balance}" step="0.01">
+                        <input type="number" id="edit-rate-${bill.id}" value="${bill.rate}" step="0.1">
+                        <input type="number" id="edit-day-${bill.id}" value="${bill.day}" min="1" max="31">
                     </div>
                     <div class="actions">
                         <button class="btn btn-save" onclick="saveEdit(${bill.id})">Save</button>
@@ -375,7 +346,6 @@
                     </div>
                 `;
             } else {
-                // Standard Display Mode
                 let statusClass = 'status-upcoming';
                 let badgeHtml = '<span class="badge badge-upcoming">Upcoming</span>';
 
@@ -384,7 +354,7 @@
                     badgeHtml = '<span class="badge badge-paid">Paid</span>';
                 } else if (bill.day < currentDay) {
                     statusClass = 'status-overdue';
-                    badgeHtml = '<span class="badge badge-overdue">Past Due Day</span>';
+                    badgeHtml = '<span class="badge badge-overdue">Past Due</span>';
                 }
 
                 const balanceText = bill.balance > 0 ? ` | Balance: $${parseFloat(bill.balance).toLocaleString('en-US', {minimumFractionDigits: 2})} (@${bill.rate}%)` : '';
@@ -435,138 +405,106 @@
             return;
         }
 
-        let totalBalanceHistory = [activeDebts.reduce((acc, d) => acc + d.balance, 0)];
-        let totalInterestPaid = 0;
-        let monthCount = 0;
-
-        while (monthCount < 360) {
-            let currentTotalBal = activeDebts.reduce((acc, d) => acc + d.balance, 0);
-            if (currentTotalBal <= 0.01) break;
-
-            monthCount++;
-
-            // 1. Pay base minimums first
-            let totalAvailableExtra = extraPayment;
-            activeDebts.forEach(d => {
-                if (d.balance > 0) {
-                    let pay = Math.min(d.balance, d.minPayment);
-                    d.balance -= pay;
-                }
-            });
-
-            // 2. Sort debts by strategy for extra principal application
-            if (strategy === 'snowball') {
-                activeDebts.sort((a, b) => a.balance - b.balance);
-            } else {
-                activeDebts.sort((a, b) => b.monthlyRate - a.monthlyRate);
-            }
-
-            // 3. Apply Extra Payment to target debt
-            for (let d of activeDebts) {
-                if (d.balance > 0 && totalAvailableExtra > 0) {
-                    let extra = Math.min(d.balance, totalAvailableExtra);
-                    d.balance -= extra;
-                    totalAvailableExtra -= extra;
-                }
-            }
-
-            // 4. Calculate monthly interest rounded up to nearest cent (Math.ceil)
-            activeDebts.forEach(d => {
-                if (d.balance > 0) {
-                    let rawInterest = d.balance * d.monthlyRate;
-                    let roundedInterest = Math.ceil(rawInterest * 100) / 100; // Round up to cents
-                    totalInterestPaid += roundedInterest;
-                    d.balance += roundedInterest;
-                }
-            });
-
-            let monthEndTotal = activeDebts.reduce((acc, d) => acc + Math.max(0, d.balance), 0);
-            totalBalanceHistory.push(monthEndTotal);
+        // Sort by Strategy
+        if (strategy === 'snowball') {
+            activeDebts.sort((a, b) => a.balance - b.balance);
+        } else {
+            activeDebts.sort((a, b) => b.monthlyRate - a.monthlyRate);
         }
 
-        const years = (monthCount / 12).toFixed(1);
-        document.getElementById('metricMonths').innerText = `${monthCount} Months (${years} Yrs)`;
+        let totalInterestPaid = 0;
+        let months = 0;
+        let balanceHistory = [];
+
+        let currentTotalBalance = activeDebts.reduce((sum, d) => sum + d.balance, 0);
+        balanceHistory.push(currentTotalBalance);
+
+        // Simulation loop capped at 30 years (360 months)
+        while (currentTotalBalance > 0.01 && months < 360) {
+            months++;
+            let extraAvailable = extraPayment;
+
+            // 1. Apply monthly interest
+            activeDebts.forEach(debt => {
+                if (debt.balance > 0) {
+                    let interest = debt.balance * debt.monthlyRate;
+                    debt.balance += interest;
+                    totalInterestPaid += interest;
+                }
+            });
+
+            // 2. Pay minimums across all active accounts
+            activeDebts.forEach(debt => {
+                if (debt.balance > 0) {
+                    let pay = Math.min(debt.balance, debt.minPayment);
+                    debt.balance -= pay;
+                    if (debt.balance <= 0) {
+                        extraAvailable += (debt.minPayment - pay); // Rollover remaining min
+                    }
+                } else {
+                    extraAvailable += debt.minPayment; // Rollover full min from paid off card
+                }
+            });
+
+            // 3. Throw extra snowball funds at targeted balance
+            for (let debt of activeDebts) {
+                if (debt.balance > 0 && extraAvailable > 0) {
+                    let extraPay = Math.min(debt.balance, extraAvailable);
+                    debt.balance -= extraPay;
+                    extraAvailable -= extraPay;
+                }
+            }
+
+            currentTotalBalance = activeDebts.reduce((sum, d) => sum + Math.max(0, d.balance), 0);
+            balanceHistory.push(currentTotalBalance);
+        }
+
+        document.getElementById('metricMonths').innerText = `${months} Months (${(months / 12).toFixed(1)} Yrs)`;
         document.getElementById('metricInterest').innerText = '$' + totalInterestPaid.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
 
-        drawCanvasChart(totalBalanceHistory);
+        drawCanvasChart(balanceHistory);
     }
 
-    function drawCanvasChart(data) {
+    function drawCanvasChart(history) {
         const canvas = document.getElementById('customPayoffChart');
         const ctx = canvas.getContext('2d');
-
+        
         canvas.width = canvas.parentElement.clientWidth;
         canvas.height = canvas.parentElement.clientHeight;
 
-        const width = canvas.width;
-        const height = canvas.height;
-        const padding = 35;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        ctx.clearRect(0, 0, width, height);
-        if (data.length <= 1) return;
+        if (history.length <= 1) return;
 
-        const maxVal = Math.max(...data);
+        const padding = 30;
+        const width = canvas.width - (padding * 2);
+        const height = canvas.height - (padding * 2);
 
-        ctx.strokeStyle = "#e0e0e0";
-        ctx.lineWidth = 1;
+        const maxBal = Math.max(...history);
+        const stepX = width / (history.length - 1);
+
         ctx.beginPath();
-        for (let i = 0; i <= 4; i++) {
-            let y = padding + (i * (height - 2 * padding) / 4);
-            ctx.moveTo(padding, y);
-            ctx.lineTo(width - padding, y);
-            
-            ctx.fillStyle = "#888";
-            ctx.font = "10px Arial";
-            let valLabel = Math.round(maxVal - (i * maxVal / 4));
-            ctx.fillText("$" + valLabel.toLocaleString(), 5, y + 3);
-        }
-        ctx.stroke();
+        ctx.strokeStyle = '#007bff';
+        ctx.lineWidth = 2;
 
-        ctx.strokeStyle = "#007bff";
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-
-        const xStep = (width - 2 * padding) / (data.length - 1);
-
-        data.forEach((val, index) => {
-            let x = padding + (index * xStep);
-            let y = height - padding - ((val / maxVal) * (height - 2 * padding));
-
-            if (index === 0) ctx.moveTo(x, y);
+        history.forEach((val, i) => {
+            const x = padding + (i * stepX);
+            const y = canvas.height - padding - ((val / maxBal) * height);
+            if (i === 0) ctx.moveTo(x, y);
             else ctx.lineTo(x, y);
         });
+
         ctx.stroke();
 
-        ctx.lineTo(width - padding, height - padding);
-        ctx.lineTo(padding, height - padding);
-        ctx.fillStyle = "rgba(0, 123, 255, 0.08)";
+        // Fill area beneath curve
+        ctx.lineTo(padding + ((history.length - 1) * stepX), canvas.height - padding);
+        ctx.lineTo(padding, canvas.height - padding);
+        ctx.fillStyle = 'rgba(0, 123, 255, 0.1)';
         ctx.fill();
-
-        ctx.fillStyle = "#555";
-        ctx.font = "11px Arial";
-        ctx.fillText("Start", padding, height - 10);
-        ctx.fillText(`Payoff (${data.length - 1}m)`, width - padding - 65, height - 10);
     }
 
-    function ordinalSuffix(i) {
-        const j = i % 10, k = i % 100;
-        if (j === 1 && k !== 11) return i + "st";
-        if (j === 2 && k !== 12) return i + "nd";
-        if (j === 3 && k !== 13) return i + "rd";
-        return i + "th";
-    }
-
-    function escapeHtml(str) {
-        return String(str).replace(/[&<>'"]/g, 
-            tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
-        );
-    }
-
-    window.addEventListener('resize', updatePayoffProjection);
-
+    // Initial render call
     renderBills();
-    updatePayoffProjection();
 </script>
-
 </body>
 </html>
