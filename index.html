@@ -65,15 +65,20 @@
         .form-group button { padding: 10px 16px; background-color: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
 
         .bill-list { list-style: none; padding: 0; margin: 0; }
-        .bill-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #e0e0e0; border-radius: 6px; margin-bottom: 10px; background-color: #fafafa; }
-        .bill-info { display: flex; flex-direction: column; gap: 4px; }
+        .bill-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border: 1px solid #e0e0e0; border-radius: 6px; margin-bottom: 10px; background-color: #fafafa; flex-wrap: wrap; gap: 10px; }
+        .bill-info { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 200px; }
         .bill-name { font-weight: bold; color: #333; }
         .bill-details { font-size: 0.85em; color: #666; }
         
-        .actions { display: flex; gap: 5px; }
-        .btn { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em; }
+        .actions { display: flex; gap: 5px; flex-wrap: wrap; }
+        .btn { padding: 6px 12px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.8em; font-weight: 500; }
         .btn-paid { background-color: #007bff; color: white; }
+        .btn-edit { background-color: #ffc107; color: #333; }
+        .btn-save { background-color: #28a745; color: white; }
         .btn-delete { background-color: #dc3545; color: white; }
+
+        .edit-form-inline { display: flex; gap: 6px; flex-wrap: wrap; width: 100%; margin-top: 5px; }
+        .edit-form-inline input { padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85em; flex: 1; min-width: 80px; }
 
         .status-overdue { border-left: 5px solid #dc3545; background-color: #fff8f8; }
         .status-upcoming { border-left: 5px solid #ffc107; }
@@ -160,6 +165,7 @@
 
 <script>
     let bills = JSON.parse(localStorage.getItem('debt_bills')) || [];
+    let editingId = null;
 
     const billForm = document.getElementById('billForm');
     const billList = document.getElementById('billList');
@@ -187,7 +193,7 @@
         if (lower.includes('car') || lower.includes('auto')) return 6.5;
         if (lower.includes('tax') || lower.includes('state')) return 5.0;
         if (lower.includes('personal loan') || lower.includes('loan')) return 10.5;
-        return 21.9; // Default Credit Card APR
+        return 21.9;
     }
 
     function parseAndImport() {
@@ -280,6 +286,7 @@
     function clearAllBills() {
         if (confirm("Are you sure you want to delete all saved bills?")) {
             bills = [];
+            editingId = null;
             saveAndRender();
         }
     }
@@ -291,6 +298,37 @@
 
     function deleteBill(id) {
         bills = bills.filter(bill => bill.id !== id);
+        if (editingId === id) editingId = null;
+        saveAndRender();
+    }
+
+    function enableEdit(id) {
+        editingId = id;
+        renderBills();
+    }
+
+    function saveEdit(id) {
+        const nameInput = document.getElementById(`edit-name-${id}`).value;
+        const amountInput = parseFloat(document.getElementById(`edit-amount-${id}`).value) || 0;
+        const balanceInput = parseFloat(document.getElementById(`edit-balance-${id}`).value) || 0;
+        const rateInput = parseFloat(document.getElementById(`edit-rate-${id}`).value) || 0;
+        const dayInput = parseInt(document.getElementById(`edit-day-${id}`).value, 10) || 1;
+
+        bills = bills.map(bill => {
+            if (bill.id === id) {
+                return {
+                    ...bill,
+                    name: nameInput,
+                    amount: amountInput,
+                    balance: balanceInput,
+                    rate: rateInput,
+                    day: dayInput
+                };
+            }
+            return bill;
+        });
+
+        editingId = null;
         saveAndRender();
     }
 
@@ -320,32 +358,52 @@
 
             const li = document.createElement('li');
 
-            let statusClass = 'status-upcoming';
-            let badgeHtml = '<span class="badge badge-upcoming">Upcoming</span>';
+            if (editingId === bill.id) {
+                // Inline Edit Form Mode
+                li.className = 'bill-item';
+                li.innerHTML = `
+                    <div class="edit-form-inline">
+                        <input type="text" id="edit-name-${bill.id}" value="${escapeHtml(bill.name)}" placeholder="Bill Name">
+                        <input type="number" id="edit-amount-${bill.id}" value="${bill.amount}" step="0.01" placeholder="Min Pay">
+                        <input type="number" id="edit-balance-${bill.id}" value="${bill.balance}" step="0.01" placeholder="Balance">
+                        <input type="number" id="edit-rate-${bill.id}" value="${bill.rate}" step="0.1" placeholder="APR %">
+                        <input type="number" id="edit-day-${bill.id}" value="${bill.day}" min="1" max="31" placeholder="Due Day">
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-save" onclick="saveEdit(${bill.id})">Save</button>
+                        <button class="btn btn-delete" onclick="enableEdit(null)">Cancel</button>
+                    </div>
+                `;
+            } else {
+                // Standard Display Mode
+                let statusClass = 'status-upcoming';
+                let badgeHtml = '<span class="badge badge-upcoming">Upcoming</span>';
 
-            if (bill.paid) {
-                statusClass = 'status-paid';
-                badgeHtml = '<span class="badge badge-paid">Paid</span>';
-            } else if (bill.day < currentDay) {
-                statusClass = 'status-overdue';
-                badgeHtml = '<span class="badge badge-overdue">Past Due Day</span>';
+                if (bill.paid) {
+                    statusClass = 'status-paid';
+                    badgeHtml = '<span class="badge badge-paid">Paid</span>';
+                } else if (bill.day < currentDay) {
+                    statusClass = 'status-overdue';
+                    badgeHtml = '<span class="badge badge-overdue">Past Due Day</span>';
+                }
+
+                const balanceText = bill.balance > 0 ? ` | Balance: $${parseFloat(bill.balance).toLocaleString('en-US', {minimumFractionDigits: 2})} (@${bill.rate}%)` : '';
+
+                li.className = `bill-item ${statusClass}`;
+                li.innerHTML = `
+                    <div class="bill-info">
+                        <span class="bill-name">${escapeHtml(bill.name)} ${badgeHtml}</span>
+                        <span class="bill-details">Due: ${ordinalSuffix(bill.day)} | Min: $${parseFloat(bill.amount).toFixed(2)}${balanceText}</span>
+                    </div>
+                    <div class="actions">
+                        <button class="btn btn-paid" onclick="togglePaid(${bill.id})">
+                            ${bill.paid ? 'Unpaid' : 'Mark Paid'}
+                        </button>
+                        <button class="btn btn-edit" onclick="enableEdit(${bill.id})">Edit</button>
+                        <button class="btn btn-delete" onclick="deleteBill(${bill.id})">Delete</button>
+                    </div>
+                `;
             }
-
-            const balanceText = bill.balance > 0 ? ` | Balance: $${parseFloat(bill.balance).toLocaleString('en-US', {minimumFractionDigits: 2})} (@${bill.rate}%)` : '';
-
-            li.className = `bill-item ${statusClass}`;
-            li.innerHTML = `
-                <div class="bill-info">
-                    <span class="bill-name">${escapeHtml(bill.name)} ${badgeHtml}</span>
-                    <span class="bill-details">Due: ${ordinalSuffix(bill.day)} | Min: $${parseFloat(bill.amount).toFixed(2)}${balanceText}</span>
-                </div>
-                <div class="actions">
-                    <button class="btn btn-paid" onclick="togglePaid(${bill.id})">
-                        ${bill.paid ? 'Unpaid' : 'Mark Paid'}
-                    </button>
-                    <button class="btn btn-delete" onclick="deleteBill(${bill.id})">Delete</button>
-                </div>
-            `;
             billList.appendChild(li);
         });
 
@@ -396,14 +454,14 @@
                 }
             });
 
-            // 2. Sort debts by selected strategy for Extra Payment application
+            // 2. Sort debts by strategy for extra principal application
             if (strategy === 'snowball') {
                 activeDebts.sort((a, b) => a.balance - b.balance);
             } else {
                 activeDebts.sort((a, b) => b.monthlyRate - a.monthlyRate);
             }
 
-            // 3. Apply Extra Principal Payment to prioritized target
+            // 3. Apply Extra Payment to target debt
             for (let d of activeDebts) {
                 if (d.balance > 0 && totalAvailableExtra > 0) {
                     let extra = Math.min(d.balance, totalAvailableExtra);
@@ -412,12 +470,13 @@
                 }
             }
 
-            // 4. Calculate interest on remaining balance *after* payments
+            // 4. Calculate monthly interest rounded up to nearest cent (Math.ceil)
             activeDebts.forEach(d => {
                 if (d.balance > 0) {
-                    let interest = d.balance * d.monthlyRate;
-                    totalInterestPaid += interest;
-                    d.balance += interest;
+                    let rawInterest = d.balance * d.monthlyRate;
+                    let roundedInterest = Math.ceil(rawInterest * 100) / 100; // Round up to cents
+                    totalInterestPaid += roundedInterest;
+                    d.balance += roundedInterest;
                 }
             });
 
